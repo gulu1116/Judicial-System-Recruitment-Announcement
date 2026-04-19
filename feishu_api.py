@@ -1,11 +1,14 @@
 import datetime
-
 import requests
+import os
 
-APP_ID = "cli_a969f2762cb81ccb"
-APP_SECRET = "EZJA8DcyTwsBnFiuXuwYygLUSYlvcHsZ"
-APP_TOKEN = "MOUwbKzNOaIOYisW5UocW2Q1nYf"
-TABLE_ID = "tblCald7kfQqQmDt"
+APP_ID = os.getenv("FEISHU_APP_ID")
+APP_SECRET = os.getenv("FEISHU_APP_SECRET")
+APP_TOKEN = os.getenv("FEISHU_APP_TOKEN")
+TABLE_ID = os.getenv("FEISHU_TABLE_ID")
+
+if not all([APP_ID, APP_SECRET, APP_TOKEN, TABLE_ID]):
+    raise RuntimeError("缺少飞书环境变量，请检查 FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_APP_TOKEN / FEISHU_TABLE_ID")
 
 session = requests.Session()
 session.trust_env = False

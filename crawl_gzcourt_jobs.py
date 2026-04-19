@@ -90,6 +90,7 @@ def main():
         print("新增:", item["公告标题"])
         add_record(token, item)
         new_count += 1
+        existing_links.add(link)
 
     print(f"新增 {new_count} 条")
 
