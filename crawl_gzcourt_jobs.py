@@ -5,7 +5,16 @@ import re
 from datetime import datetime
 from feishu_api import add_record, get_existing_links, get_token
 
-LIST_URL = "https://www.gzcourt.gov.cn/fygg/zpgg/"
+SOURCES = [
+    {
+        "name": "广州法院系统招录公告",
+        "url": "https://www.gzcourt.gov.cn/fygg/zpgg/",
+        "发布机关": "广州法院系统",
+        "机关类型": "法院",
+        "地区": "广州",
+        "detail_url_pattern": r"/\d{4}/\d{2}/\d+\.html$",
+    },
+]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
@@ -29,7 +38,7 @@ def fetch_list_page(url: str) -> str:
 
     return resp.text
 
-def parse_list(html: str):
+def parse_list(html: str,source: dict) -> list:
     soup = BeautifulSoup(html, "html.parser")
     results = []
 
@@ -48,7 +57,7 @@ def parse_list(html: str):
         if any(k in title for k in ["公示", "名单", "成绩", "体检", "递补", "资格审核"]):
             continue
 
-        full_url = urljoin(LIST_URL, href)
+        full_url = urljoin(source["url"], href)
         # 只保留具体公告页
         if not re.search(r"/\d{4}/\d{2}/\d+\.html$", full_url):
             continue
@@ -63,7 +72,9 @@ def parse_list(html: str):
             "公告标题": title,
             "发布时间": date_text,
             "公告链接": full_url,
-            "发布机关": "广州法院系统",
+            "发布机关": source["发布机关"],
+            "机关类型": source["机关类型"],
+            "地区": source["地区"],
         })
 
     dedup = {}
@@ -76,8 +87,13 @@ def main():
 
     existing_links = get_existing_links(token)
 
-    html = fetch_list_page(LIST_URL)
-    items = parse_list(html)
+    all_items = []
+
+    for source in SOURCES:
+        print("正在抓取来源:", source["name"])
+        html = fetch_list_page(source["url"])
+        items = parse_list(html, source)
+        all_items.extend(items)
 
     filtered_items = []
     new_count = 0
