@@ -1,6 +1,5 @@
-import datetime
 from feishu_api import get_records, get_token, update_record
-
+import datetime
 def parse_deadline(deadline_value):
     if deadline_value is None:
         return None

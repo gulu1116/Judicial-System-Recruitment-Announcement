@@ -57,7 +57,6 @@ def get_token():
         timeout=20,
     )
     print("get_token status:", res.status_code)
-    print("get_token body:", res.text)
     res.raise_for_status()
     data = res.json()
     if "tenant_access_token" not in data:
@@ -84,7 +83,6 @@ def get_records(token):
 
         res = session.post(url, headers=headers, json=payload, timeout=20)
         print("get_records status:", res.status_code)
-        print("get_records body:", res.text)
         res.raise_for_status()
 
         data = res.json()

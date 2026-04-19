@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import re
+from datetime import datetime
 from feishu_api import add_record, get_existing_links, get_token
 
 LIST_URL = "https://www.gzcourt.gov.cn/fygg/zpgg/"
@@ -78,11 +79,19 @@ def main():
     html = fetch_list_page(LIST_URL)
     items = parse_list(html)
 
-    print(f"抓到 {len(items)} 条")
-
+    filtered_items = []
     new_count = 0
 
     for item in items:
+        try:
+            year = datetime.strptime(item["发布时间"], "%Y-%m-%d").year
+            if year == 2026:
+                filtered_items.append(item)
+        except:
+            continue    
+    print(f"抓到 {len(filtered_items)} 条")
+
+    for item in filtered_items:
         link = item["公告链接"]
         if link in existing_links:
             print("跳过已存在:", item["公告标题"])
