@@ -133,6 +133,8 @@ def add_record(token, item):
                 "link": item["公告链接"],
                 "text": item["公告链接"]
             },
+            "机关类型": item["机关类型"],
+            "地区": item["地区"],
             "发布机关": item["发布机关"],
             "当前状态": "未看",
         }

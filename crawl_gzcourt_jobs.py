@@ -1,20 +1,11 @@
 import requests
+import re
+from sources import SOURCES
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-import re
 from datetime import datetime
 from feishu_api import add_record, get_existing_links, get_token
 
-SOURCES = [
-    {
-        "name": "广州法院系统招录公告",
-        "url": "https://www.gzcourt.gov.cn/fygg/zpgg/",
-        "发布机关": "广州法院系统",
-        "机关类型": "法院",
-        "地区": "广州",
-        "detail_url_pattern": r"/\d{4}/\d{2}/\d+\.html$",
-    },
-]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0"
