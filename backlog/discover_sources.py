@@ -1,18 +1,20 @@
 # discover_sources_selenium.py
-
+import time
+from urllib.parse import urlparse, quote_plus
+from selenium.webdriver.chrome.service import Service
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from urllib.parse import urlparse
+import undetected_chromedriver as uc
 import re
 
 # 关键词列表
 SEARCH_QUERIES = [
     "site:gz.gov.cn 书记员 招聘",
-    "site:gz.gov.cn 法官助理 招聘",
-    "site:gz.gov.cn 司法辅助 招聘",
-    "site:gz.gov.cn 法律援助中心 招聘",
-    "site:gz.gov.cn 公共法律服务中心 招聘",
+    # "site:gz.gov.cn 法官助理 招聘",
+    # "site:gz.gov.cn 司法辅助 招聘",
+    # "site:gz.gov.cn 法律援助中心 招聘",
+    # "site:gz.gov.cn 公共法律服务中心 招聘",
 ]
 
 # 包含/排除关键字
@@ -36,23 +38,34 @@ def is_candidate_title(title: str) -> bool:
 
 def main():
     # Selenium 设置
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")  # 无头模式
+    chrome_options = uc.ChromeOptions()
+    # chrome_options.add_argument("--headless")  # 无头模式
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
-    driver = webdriver.Chrome(options=chrome_options)
+    driver = uc.Chrome(options=chrome_options)
 
     all_candidates = []
 
     for query in SEARCH_QUERIES:
         print(f"搜索关键词: {query}")
-        driver.get(f"https://www.bing.com/search?q={query}")
+        driver.get(f"https://www.bing.com/search?q={quote_plus(query)}")
+
+        time.sleep(10)
+
+        print("页面标题:", driver.title)
+        print("当前URL:", driver.current_url)
 
         # 等待加载页面后抓取结果
         results = driver.find_elements(By.CSS_SELECTOR, "li.b_algo h2 a")
+        print("原始搜索结果数量:", len(results))
+
         for a in results:
             title = a.text.strip()
             href = a.get_attribute("href").strip()
+            print("原始结果:", title, href)
+
+            if not href:
+                continue
             if is_candidate_title(title) and is_candidate_url(href):
                 candidate = {
                     "name": title,
