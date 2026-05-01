@@ -1,0 +1,6 @@
+# 仅在本地开发与 CI 自动化测试时需要，运行主脚本不依赖。
+# 安装：pip install -r requirements-dev.txt
+
+-r requirements.txt
+
+pytest>=8.0,<9
