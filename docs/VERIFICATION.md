@@ -139,46 +139,92 @@ HTML 长度: 8550 字节
 - 飞书 update（`update_record` 状态更新）
 - **报名截止 → 已截止** 的自动扫描逻辑（B4 修复的时区守护）
 
-### 3.1 创建测试用飞书应用
+### 3.0 ⛔ 安全原则
+
+**永远不要在作者的生产飞书表上跑写入或更新操作**。否则：
+- `crawl_gzcourt_jobs.py` 会真的往生产表新增记录 → 污染数据
+- `update_status.py` 会真的修改生产记录的状态 → 业务风险
+
+正确做法：使用独立的 sandbox。下面三条 sandbox 路径按你手头有的资源选择。
+
+### 3.1 路径选择
+
+| 路径 | 作者需要给你 | 你需要做 | 适用场景 |
+|------|-------------|---------|---------|
+| **A — 全自建 sandbox** | 飞书组织邀请链接 | 自建测试表 + 自建测试应用 | 最干净、最规范，**推荐** |
+| **B — 用作者建的 sandbox 表** | 邀请链接 + sandbox 表的 `App Token` 和 `Table ID` | 自建测试应用 | 字段配置作者已搞定 |
+| **C — 用作者全套测试凭证** | 完整 4 个 `FEISHU_*` 凭证 + sandbox 表 | 配 `.env` 跑脚本 | 最便捷但凭证管理复杂 |
+
+下面以 **路径 A** 为基础给完整步骤，**B / C 的差异**在每节标注 → "路径 B/C 跳过本节"。
+
+### 3.2 阶段 ① 加入作者的飞书组织（路径 A/B 必做）
+
+1. 浏览器打开作者发的邀请链接（形如 `https://<tenant>.feishu.cn/invite/member/...`）
+2. 用手机号/邮箱注册或登录飞书账号
+3. 点击 **接受邀请 / 加入组织**
+4. 进入组织工作台
+
+> 路径 C 跳过：作者已给完整凭证，跳到 3.8
+
+### 3.3 阶段 ② 在组织里创建你自己的 sandbox 多维表（仅路径 A）
+
+> 路径 B 跳过：使用作者给的 sandbox 表，跳到 3.5
+
+1. 飞书工作台左上角点 **➕** → **多维表格**
+2. 选 **空白多维表格**
+3. 命名为 `judicial-crawler-sandbox-<你的标识>`，方便区分
+4. 进入表后把默认字段全部删除，按下面的字段契约新建
+
+#### 字段契约 — 8 个字段，名字必须完全一致
+
+| # | 字段名 | 字段类型 | 关键说明 |
+|---|--------|---------|---------|
+| 1 | `公告标题` | 文本 | |
+| 2 | `发布时间` | 日期 | 格式不限，代码用毫秒时间戳写入 |
+| 3 | `公告链接` | 超链接 | |
+| 4 | `发布机关` | 文本 | 推荐文本（用单选要预设「广州法院系统」选项） |
+| 5 | `机关类型` | 文本 | 同上 |
+| 6 | `地区` | 文本 | 同上 |
+| 7 | `当前状态` | **单选** | ⚠️ **必须**预设「未看」「已截止」两个选项 |
+| 8 | `报名截止` | 日期 | |
+
+> ⚠️ 第 7 个字段最容易踩坑：必须是「单选」类型，且选项里有「未看」「已截止」两个 **一字不差** 的值（无前后空格、无标点）。
+
+### 3.4 阶段 ③ 创建你自己的测试飞书应用（路径 A/B）
+
+> 路径 C 跳过：作者已给凭证，跳到 3.8
 
 1. 打开 <https://open.feishu.cn/app>
-2. 右上角 **创建应用** → **自建应用**
-3. 名称随意，如 `judicial-crawler-sandbox`
-4. 创建后进入应用详情页，左侧菜单 **凭证与基础信息**
-5. 抄下：
+2. 用刚加入组织的飞书账号登录
+3. 右上角点 **创建企业自建应用**
+4. 填写：
+   - 应用名称：`judicial-crawler-sandbox-<你的标识>`
+   - 应用描述：`司法招聘爬虫个人测试应用`
+5. 点 **创建**
+6. 进入应用详情页，左侧 **凭证与基础信息**
+7. 复制并妥善保管：
    - `App ID`（形如 `cli_xxx`）
-   - `App Secret`
+   - `App Secret`（点 "查看" 显示，**不要外发或截图**）
 
-### 3.2 开通权限
+### 3.5 阶段 ④ 开通权限并发布（路径 A/B）
 
-在 **权限管理** 勾选 `bitable:app`（多维表格读写），然后：
+1. 应用详情页左侧 **权限管理** → **API 权限**
+2. 搜索 `bitable`，勾选 `bitable:app`（"查看、评论、编辑和管理多维表格"）
+3. 点 **保存**
+4. 左侧 **版本管理与发布** → **创建版本**
+5. 填版本号（如 `1.0.0`）和说明 → **保存并申请发布**
 
-**发布 → 创建版本 → 提交审核**（自建应用通常秒通过）。
+> 多数组织自建应用秒批；如卡审核 > 5 分钟，让作者批准。
 
-### 3.3 准备一个测试用多维表格
+### 3.6 阶段 ⑤ 把应用加为表的协作者（路径 A/B）
 
-新建一个多维表格，字段**严格按下表配置**：
+1. 回到 sandbox 多维表（路径 A 是你自建的，路径 B 是作者给的）
+2. 右上角 **...** → **更多** → **添加文档应用**
+3. 搜索你刚创建的应用名 → **添加**，权限选 **可编辑**
 
-| 字段名 | 字段类型 | 关键说明 |
-|--------|---------|---------|
-| `公告标题` | 文本 | |
-| `发布时间` | 日期 | |
-| `公告链接` | 超链接 | |
-| `发布机关` | 单选 或 文本 | 若用单选需预设「广州法院系统」选项 |
-| `机关类型` | 单选 或 文本 | 若用单选需预设「法院」选项 |
-| `地区` | 单选 或 文本 | 若用单选需预设「广州」选项 |
-| `当前状态` | 单选 | **必须**预设「未看」「已截止」两个选项 |
-| `报名截止` | 日期 | |
+### 3.7 阶段 ⑥ 提取表的 `App Token` 和 `Table ID`（路径 A/B）
 
-> ⚠️ `当前状态` 单选的两个选项（"未看" / "已截止"）必须提前存在，否则 `add_record` 会 400 报错。
-
-### 3.4 把应用加为表协作者
-
-多维表格右上角 **...** → **更多** → **添加文档应用** → 搜索你刚创建的应用 → 添加。
-
-### 3.5 获取表的 `App Token` 和 `Table ID`
-
-打开多维表格页面，看浏览器 URL：
+打开 sandbox 表，查看浏览器 URL：
 
 ```
 https://xxx.feishu.cn/base/U4Xbb1xxxxxxxxxxxxxxxxxx?table=tblxxxxxxxxxxxxxx&view=vewxxx
@@ -186,9 +232,24 @@ https://xxx.feishu.cn/base/U4Xbb1xxxxxxxxxxxxxxxxxx?table=tblxxxxxxxxxxxxxx&view
                               FEISHU_APP_TOKEN              FEISHU_TABLE_ID
 ```
 
-### 3.6 配置环境变量
+- `/base/` 后到 `?` 之间 → `FEISHU_APP_TOKEN`
+- `table=` 后到 `&` 之间 → `FEISHU_TABLE_ID`
 
-复制 `.env.example` 为 `.env`，填入 4 个真实值：
+### 3.8 阶段 ⑦ 配置 `.env` 并跑脚本（路径 A/B/C 共用）
+
+#### 3.8.1 建 `.env` 文件
+
+```powershell
+# Windows
+Copy-Item .env.example .env
+```
+
+```bash
+# Linux / macOS
+cp .env.example .env
+```
+
+用 IDE 打开 `.env`，填入 4 个真实值：
 
 ```
 FEISHU_APP_ID=cli_xxx
@@ -197,41 +258,50 @@ FEISHU_APP_TOKEN=U4Xbb1xxx
 FEISHU_TABLE_ID=tblxxx
 ```
 
-> `.env` 已在 `.gitignore` 内，不会被 git 跟踪。运行前请再次确认 `git status` 看不到它。
-
-### 3.7 运行完整流程
-
-当前项目用 `os.getenv()` 而非自动加载 `.env`，需要手动 export：
+**确认 `.env` 不会被提交**：
 
 ```powershell
-# Windows PowerShell
+git status
+# 必须看不到 .env
+```
+
+#### 3.8.2 跑脚本
+
+由于项目代码当前用 `os.getenv()` 不自动读 `.env`，需手动 export。复制**整块**命令运行：
+
+```powershell
+# Windows PowerShell —— 自动从 .env 读值并 export 到当前会话
+Get-Content .env | ForEach-Object {
+    if ($_ -match '^\s*([^#=]+)=(.*)$') {
+        $name = $matches[1].Trim()
+        $value = $matches[2].Trim()
+        Set-Item -Path "env:$name" -Value $value
+    }
+}
+
 $py = "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe"
 $env:PYTHONIOENCODING = "utf-8"
-$env:FEISHU_APP_ID     = "cli_xxx"
-$env:FEISHU_APP_SECRET = "xxx"
-$env:FEISHU_APP_TOKEN  = "U4Xbb1xxx"
-$env:FEISHU_TABLE_ID   = "tblxxx"
 
-& $py scripts/smoke_crawl.py      # 先冒烟
-& $py crawl_gzcourt_jobs.py       # 抓取 + 写入
-& $py update_status.py            # 扫描过期状态
+# Step A: 抓取冒烟
+& $py scripts/smoke_crawl.py
+# Step B: 完整流程（抓 + 写入飞书）
+& $py crawl_gzcourt_jobs.py
+# Step C: 状态更新扫描
+& $py update_status.py
 ```
 
 ```bash
 # Linux / macOS
-export FEISHU_APP_ID="cli_xxx"
-export FEISHU_APP_SECRET="xxx"
-export FEISHU_APP_TOKEN="U4Xbb1xxx"
-export FEISHU_TABLE_ID="tblxxx"
+set -a; source .env; set +a   # 自动 export
 
 python scripts/smoke_crawl.py
 python crawl_gzcourt_jobs.py
 python update_status.py
 ```
 
-### 3.8 预期输出（首次运行）
+### 3.9 阶段 ⑧ 检查验证结果
 
-**`crawl_gzcourt_jobs.py`**：
+#### 3.9.1 `crawl_gzcourt_jobs.py` 预期输出
 
 ```
 get_token status: 200
@@ -239,61 +309,50 @@ get_records status: 200
 已有记录数: 0
 正在抓取来源: 广州法院系统招录公告
 status: 200
-final url: https://www.gzcourt.gov.cn/fygg/zpgg/
 抓到 N 条
 新增: 广州市中级人民法院2026年公开招募就业见习人员公告
 add_record status: 200
-add_record body: {"code":0,"msg":"success", ...}
 新增 N 条
 ```
 
-**`update_status.py`** 首次跑（尚无过期公告）：
+#### 3.9.2 sandbox 表内容 checklist
 
-```
-get_token status: 200
-get_records status: 200
-today(Asia/Shanghai): 2026-05-01
-record title: 广州市中级人民法院2026年公开招募就业见习人员公告
-deadline raw: None
-status raw: {'text': '未看', 'value': '未看', ...}
-...
-（没有 "准备更新" 的行，因为所有记录的报名截止都未过期或未填）
-```
+切回飞书 sandbox 表：
 
-### 3.9 验证写入结果
-
-切回飞书多维表格页面：
-
-- [ ] 多出 1 条记录
-- [ ] 标题、发布时间、公告链接 字段与抓取到的数据一致
+- [ ] 多出 N 条记录（N ≥ 0；若当年没招聘公告则 0）
+- [ ] 标题、发布时间、公告链接 与抓取数据一致
 - [ ] 发布机关=「广州法院系统」、机关类型=「法院」、地区=「广州」
 - [ ] 当前状态=「未看」
 - [ ] 报名截止字段为空
 
-### 3.10 验证状态更新逻辑（B4 时区修复）
+#### 3.9.3 验证 B4 时区修复（关键回归点）
 
-1. 手动在飞书表里给上一步新增的这条记录，**报名截止** 字段填一个**已经过去的日期**（例如 `2025-01-01`）
-2. 重跑 `python update_status.py`
+1. 在 sandbox 表给某条记录的 **报名截止** 字段填一个**已过去的日期**（如 `2025-01-01`）
+2. 重跑 `update_status.py`
 3. 预期输出多一段：
    ```
    准备更新: 广州市中级人民法院2026年公开招募就业见习人员公告
    update_record status: 200
-   update_record body: {"code":0,"msg":"success", ...}
    ```
-4. 回飞书表看，这条的 **当前状态** 应从「未看」变为「已截止」
+4. 回 sandbox 表，这条的 **当前状态** 应从「未看」变为「已截止」 ✅
 
-### 3.11 重复运行验证去重
+#### 3.9.4 验证去重
 
-再跑一次 `python crawl_gzcourt_jobs.py`：
+再跑一次 `crawl_gzcourt_jobs.py`：
 
 ```
-已有记录数: 1
+已有记录数: N
 ...
 跳过已存在: 广州市中级人民法院2026年公开招募就业见习人员公告
 新增 0 条
 ```
 
-飞书表不应出现重复记录，说明 `公告链接` 去重逻辑有效。
+sandbox 表**不应**新增重复记录，说明 `公告链接` 去重逻辑有效。
+
+### 3.10 验证完成后清理
+
+- 测试结束，如不再使用：在飞书开发者后台**删除测试应用**，避免凭证残留
+- `.env` 留在本地（已被 `.gitignore`），后续验证可复用
 
 ---
 
