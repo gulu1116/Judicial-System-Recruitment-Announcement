@@ -89,7 +89,7 @@ def main():
     filtered_items = []
     new_count = 0
 
-    for item in items:
+    for item in all_items:
         try:
             year = datetime.strptime(item["发布时间"], "%Y-%m-%d").year
             if year == 2026:
