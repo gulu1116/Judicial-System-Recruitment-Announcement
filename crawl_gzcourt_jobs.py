@@ -91,12 +91,17 @@ def main():
     current_year = datetime.now().year
 
     for item in all_items:
+        raw_date = item.get("发布时间", "")
+        if not raw_date:
+            print(f"跳过（无发布时间）: {item.get('公告标题', '')} {item.get('公告链接', '')}")
+            continue
         try:
-            year = datetime.strptime(item["发布时间"], "%Y-%m-%d").year
-            if year == current_year:
-                filtered_items.append(item)
-        except:
-            continue    
+            year = datetime.strptime(raw_date, "%Y-%m-%d").year
+        except ValueError:
+            print(f"跳过（发布时间解析失败 {raw_date!r}）: {item.get('公告标题', '')}")
+            continue
+        if year == current_year:
+            filtered_items.append(item)
     print(f"抓到 {len(filtered_items)} 条")
 
     for item in filtered_items:
