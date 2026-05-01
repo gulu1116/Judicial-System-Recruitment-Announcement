@@ -88,11 +88,12 @@ def main():
 
     filtered_items = []
     new_count = 0
+    current_year = datetime.now().year
 
     for item in all_items:
         try:
             year = datetime.strptime(item["发布时间"], "%Y-%m-%d").year
-            if year == 2026:
+            if year == current_year:
                 filtered_items.append(item)
         except:
             continue    
