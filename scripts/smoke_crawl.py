@@ -21,7 +21,7 @@ except AttributeError:
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from crawl_gzcourt_jobs import fetch_list_page, parse_list
+from crawl_gzcourt_jobs import fetch_list_page, parse_list, parse_total_pages, page_url
 from sources import SOURCES
 
 
@@ -34,37 +34,46 @@ def main() -> None:
         print(f"\n[源] {s['name']}  {s['url']}")
         try:
             html = fetch_list_page(s["url"])
-            print(f"HTML 长度: {len(html)} 字节")
+            print(f"第 1 页 HTML 长度: {len(html)} 字节")
         except Exception as e:
             print(f"抓取失败: {type(e).__name__}: {e}")
             continue
 
-        try:
-            items = parse_list(html, s)
-        except Exception as e:
-            print(f"解析失败: {type(e).__name__}: {e}")
-            continue
+        total_pages = parse_total_pages(html)
+        print(f"共 {total_pages} 页")
 
-        print(f"解析到 {len(items)} 条招聘类公告")
+        all_items = parse_list(html, s)
+
+        # 抓取剩余分页（冒烟测试只抓前 3 页，避免耗时过长）
+        max_pages = min(total_pages, 3)
+        for page in range(2, max_pages + 1):
+            p_url = page_url(s["url"], page)
+            print(f"  抓取第 {page} 页: {p_url}")
+            try:
+                html = fetch_list_page(p_url)
+                items = parse_list(html, s)
+                all_items.extend(items)
+            except Exception as e:
+                print(f"  第 {page} 页抓取失败: {e}")
+
+        print(f"解析到 {len(all_items)} 条招聘类公告（前 {max_pages} 页）")
 
         current_year = datetime.now().year
         year_hits = 0
-        for it in items[:15]:
-            year_str = ""
+        for it in all_items[:20]:
             try:
                 if it["发布时间"]:
                     year = datetime.strptime(it["发布时间"], "%Y-%m-%d").year
-                    year_str = str(year)
-                    if year == current_year:
+                    if year >= current_year - 1:
                         year_hits += 1
             except Exception:
-                year_str = "?"
+                pass
             date_col = it["发布时间"] or "no-date"
-            print(f"  - [{date_col:>10}] {it['公告标题'][:40]}")
+            print(f"  - [{date_col:>10}] {it['公告标题'][:50]}")
             print(f"    {it['公告链接']}")
-        if len(items) > 15:
-            print(f"  ... 共 {len(items)} 条（仅显示前 15 条）")
-        print(f"前 15 条中属于当前年({current_year})的: {year_hits}")
+        if len(all_items) > 20:
+            print(f"  ... 共 {len(all_items)} 条（仅显示前 20 条）")
+        print(f"前 20 条中属于当年或去年的: {year_hits}")
 
 
 if __name__ == "__main__":
