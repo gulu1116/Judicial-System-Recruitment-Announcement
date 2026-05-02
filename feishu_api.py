@@ -83,6 +83,8 @@ def get_records(token):
 
         res = session.post(url, headers=headers, json=payload, timeout=20)
         print("get_records status:", res.status_code)
+        if res.status_code != 200:
+            print("get_records body:", res.text[:500])
         res.raise_for_status()
 
         data = res.json()
