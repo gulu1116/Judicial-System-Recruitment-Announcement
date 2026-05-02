@@ -29,7 +29,7 @@ def fetch_list_page(url: str) -> str:
 
     return resp.text
 
-def parse_list(html: str,source: dict) -> list:
+def parse_list(html: str, source: dict) -> list:
     soup = BeautifulSoup(html, "html.parser")
     results = []
 
@@ -41,11 +41,11 @@ def parse_list(html: str,source: dict) -> list:
             continue
 
         # 必须包含招聘类关键词
-        if not any(k in title for k in ["招聘", "招募", "招录"]):
+        if not any(k in title for k in ["招聘", "招募", "招录", "录用"]):
             continue
 
-        # 排除非招聘公告
-        if any(k in title for k in ["公示", "名单", "成绩", "体检", "递补", "资格审核"]):
+        # 排除非招聘公告（保留「拟录用人员公示」等招聘结果公告）
+        if any(k in title for k in ["名单", "成绩", "体检", "递补", "资格审核"]):
             continue
 
         full_url = urljoin(source["url"], href)
@@ -73,6 +73,27 @@ def parse_list(html: str,source: dict) -> list:
         dedup[item["公告链接"]] = item
     return list(dedup.values())
 
+
+def parse_total_pages(html: str) -> int:
+    """从分页区域解析总页数，如 '页次:1/10' → 10"""
+    m = re.search(r"页次:\s*\d+/(\d+)", html)
+    if m:
+        return int(m.group(1))
+    return 1
+
+
+def page_url(base_url: str, page: int) -> str:
+    """根据 base_url 和页码生成分页 URL。
+    第 1 页: base_url 本身（或 base_url + 'index.html'）
+    第 N 页: base_url + 'index{N-1}.html'
+    """
+    if page <= 1:
+        return base_url
+    # 确保 base_url 以 / 结尾
+    if not base_url.endswith("/"):
+        base_url += "/"
+    return f"{base_url}index{page - 1}.html"
+
 def main():
     token = get_token()
 
@@ -83,8 +104,37 @@ def main():
     for source in SOURCES:
         print("正在抓取来源:", source["name"])
         html = fetch_list_page(source["url"])
+        total_pages = parse_total_pages(html)
+        print(f"  共 {total_pages} 页")
         items = parse_list(html, source)
         all_items.extend(items)
+
+        # 抓取剩余分页（遇到整页都是旧年份则提前终止）
+        current_year = datetime.now().year
+        for page in range(2, total_pages + 1):
+            p_url = page_url(source["url"], page)
+            print(f"  抓取第 {page} 页: {p_url}")
+            try:
+                html = fetch_list_page(p_url)
+                items = parse_list(html, source)
+            except Exception as e:
+                print(f"  第 {page} 页抓取失败: {e}")
+                continue
+            if not items:
+                print(f"  第 {page} 页无匹配条目，停止翻页")
+                break
+            # 检查本页最新记录的年份
+            page_years = []
+            for it in items:
+                try:
+                    if it["发布时间"]:
+                        page_years.append(datetime.strptime(it["发布时间"], "%Y-%m-%d").year)
+                except ValueError:
+                    pass
+            if page_years and max(page_years) < current_year - 1:
+                print(f"  第 {page} 页最新年份 {max(page_years)} < {current_year - 1}，停止翻页")
+                break
+            all_items.extend(items)
 
     filtered_items = []
     new_count = 0
@@ -100,7 +150,7 @@ def main():
         except ValueError:
             print(f"跳过（发布时间解析失败 {raw_date!r}）: {item.get('公告标题', '')}")
             continue
-        if year == current_year:
+        if year >= current_year - 1:
             filtered_items.append(item)
     print(f"抓到 {len(filtered_items)} 条")
 
